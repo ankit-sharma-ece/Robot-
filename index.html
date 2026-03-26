@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Lep's Odyssey - Infinite Runner</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: linear-gradient(145deg, #0a2f3a 0%, #0a1f2a 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', 'Poppins', 'Quicksand', system-ui, -apple-system, 'Inter', sans-serif;
+        }
+
+        /* Game container */
+        .game-container {
+            background: #1e3b2f;
+            border-radius: 2.5rem;
+            padding: 1rem;
+            box-shadow: 0 25px 40px rgba(0,0,0,0.5), inset 0 1px 2px rgba(255,255,255,0.1);
+        }
+
+        canvas {
+            display: block;
+            margin: 0 auto;
+            border-radius: 1.8rem;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            cursor: pointer;
+        }
+
+        /* UI Panel */
+        .game-ui {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1rem;
+            gap: 1rem;
+            flex-wrap: wrap;
+            background: rgba(10, 25, 20, 0.7);
+            backdrop-filter: blur(8px);
+            border-radius: 3rem;
+            padding: 0.5rem 1.2rem;
+        }
+
+        .stats {
+            display: flex;
+            gap: 1.5rem;
+            background: #1f2e24;
+            padding: 0.4rem 1rem;
+            border-radius: 2rem;
+            color: #ffecb3;
+            font-weight: bold;
+            text-shadow: 0 2px 2px black;
+        }
+
+        .stats span {
+            font-size: 1.3rem;
+            background: #00000066;
+            padding: 0.1rem 0.6rem;
+            border-radius: 2rem;
+            margin-left: 0.5rem;
+            font-family: monospace;
+            font-size: 1.5rem;
+        }
+
+        /* Direction pad + double jump button */
+        .controls {
+            display: flex;
+            gap: 0.8rem;
+            background: #2c4638aa;
+            padding: 0.4rem 1rem;
+            border-radius: 3rem;
+            backdrop-filter: blur(4px);
+        }
+
+        .ctrl-btn {
+            background: #2b2b2bdd;
+            border: none;
+            font-size: 2rem;
+            font-weight: bold;
+            width: 60px;
+            padding: 8px 0;
+            border-radius: 2rem;
+            color: white;
+            text-shadow: 0 2px 3px black;
+            box-shadow: 0 5px 0 #111;
+            transition: 0.07s linear;
+            cursor: pointer;
+            font-family: monospace;
+            backdrop-filter: blur(2px);
+        }
+
+        .ctrl-btn:active {
+            transform: translateY(3px);
+            box-shadow: 0 2px 0 #111;
+        }
+
+        .double-jump {
+            background: #e67e22dd;
+            color: #ffefb9;
+            font-size: 1.2rem;
+            width: auto;
+            padding: 8px 20px;
+            letter-spacing: 1px;
+        }
+
+        .reset-btn {
+            background: #c44536dd;
+            font-size: 1.2rem;
+            width: auto;
+            padding: 8px 20px;
+        }
+
+        @media (max-width: 720px) {
+            .ctrl-btn { width: 55px; font-size: 1.8rem; }
+            .stats span { font-size: 1.1rem; }
+        }
+
+        .score-highlight {
+            background: gold;
+            color: #1f2a1b;
+            padding: 0.2rem 0.6rem;
+            border-radius: 2rem;
+        }
+
+        footer {
+            font-size: 0.7rem;
+            text-align: center;
+            margin-top: 0.7rem;
+            color: #b7d968;
+        }
+    </style>
+</head>
+<body>
+<div>
+    <div class="game-container">
+        <canvas id="gameCanvas" width="1000" height="500" style="width:100%; height:auto; max-width:1000px; aspect-ratio:1000/500"></canvas>
+        
+        <div class="game-ui">
+            <div class="stats">
+                <div>🏆 SCORE <span id="scoreValue">0</span></div>
+                <div>💎 GEMS <span id="gemsValue">0</span></div>
+                <div>✨ DIST <span id="distValue">0</span>m</div>
+            </div>
+            <div class="controls">
+                <button class="ctrl-btn" id="leftBtn">◀</button>
+                <button class="ctrl-btn" id="rightBtn">▶</button>
+                <button class="ctrl-btn" id="upBtn">▲</button>
+                <button class="ctrl-btn" id="downBtn">▼</button>
+                <button class="ctrl-btn double-jump" id="doubleJumpBtn">✪ DOUBLE JUMP</button>
+                <button class="ctrl-btn reset-btn" id="resetBtn">⟳ RESTART</button>
+            </div>
+        </div>
+        <footer>✨ Infinite Hills | Rivers | Puzzles | Trees | Like Lep's World ✨</footer>
+    </div>
+</div>
+
+<script>
+    (function(){
+        // ---------- CANVAS ----------
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Dimensions
+        let CANVAS_W = 1000;
+        let CANVAS_H = 500;
+        canvas.width = CANVAS_W;
+        canvas.height = CANVAS_H;
+        
+        // ---------- GAME STATE ----------
+        let gameRunning = true;
+        let score = 0;          // total score from gems + distance
+        let gemsCollected = 0;
+        let distance = 0;       // meters / world units
+        
+        // player
+        const PLAYER_WIDTH = 32;
+        const PLAYER_HEIGHT = 32;
+        let player = {
+            x: 150,
+            y: 0,        // set dynamically based on ground
+            vx: 0,
+            vy: 0,
+            width: PLAYER_WIDTH,
+            height: PLAYER_HEIGHT,
+            grounded: false,
+            doubleJumpAvailable: true,
+            facingRight: true
+        };
+        
+        // world scrolling
+        let cameraX = 0;
+        let worldOffset = 0;    // accumulated scroll
+        
+        // Terrain & obstacles generation
+        let terrainBlocks = [];   // static platforms / ground chunks
+        let decorations = [];     // trees, hills (purely visual)
+        let rivers = [];          // river segments (damage / slow)
+        let puzzles = [];         // interactive puzzle orbs / question blocks
+        let gems = [];            // collectibles
+        
+        // constants
+        const GRAVITY = 0.8;
+        const JUMP_POWER = -12;
+        const GROUND_Y_BASE = CANVAS_H - 55;    // baseline ground
+        
+        // world generation parameters
+        let lastGenX = 0;
+        const GEN_DISTANCE = 300;   // generate ahead every 300px
+        
+        // ---------- helper functions ----------
+        function updateUI(){
+            document.getElementById('scoreValue').innerText = Math.floor(score);
+            document.getElementById('gemsValue').innerText = gemsCollected;
+            document.getElementById('distValue').innerText = Math.floor(distance);
+        }
+        
+        // ---- procedural generation: hills, trees, rivers, puzzles, platforms ----
+        function generateWorldSegment(startX, endX){
+            // generate ground chunks (terrain blocks) = main ground platforms from startX to endX
+            // but we also want interesting hills: we create variable ground height using blocks
+            for(let x = startX; x <= endX; x += 45){
+                let yOffset = 0;
+                // hill noise: sine wave style to make rolling hills
+                let hillFactor = Math.sin(x * 0.012) * 14;
+                let extraHill = Math.sin(x * 0.035) * 6;
+                let groundHeight = GROUND_Y_BASE + hillFactor + extraHill;
+                // clamp between values
+                groundHeight = Math.min(GROUND_Y_BASE + 20, Math.max(GROUND_Y_BASE - 18, groundHeight));
+                
+                // only add terrain block if not overlapping too much, we store as ground rects
+                terrainBlocks.push({
+                    x: x,
+                    y: groundHeight,
+                    w: 42,
+                    h: CANVAS_H - groundHeight,
+                    type: 'ground'
+                });
+                
+                // spawn trees (decor) randomly on hills
+                if(Math.random() < 0.12 && x > startX + 30){
+                    decorations.push({
+                        x: x + 5,
+                        y: groundHeight - 28,
+                        type: 'tree',
+                        variant: Math.floor(Math.random() * 3)
+                    });
+                }
+                // spawn decorative hills (mounds)
+                if(Math.random() < 0.08){
+                    decorations.push({
+                        x: x - 10,
+                        y: groundHeight - 12,
+                        type: 'hillMound',
+                        width: 50,
+                        height: 20
+                    });
+                }
+                
+                // Rivers: create river segments (water hazard) sometimes
+                if(Math.random() < 0.06 && x > startX + 100){
+                    rivers.push({
+                        x: x,
+                        y: groundHeight - 10,
+                        w: 70,
+                        h: 15,
+                        active: true
+                    });
+                }
+                
+                // Puzzles: floating question mark / puzzle block
+                if(Math.random() < 0.07 && x > startX + 80){
+                    puzzles.push({
+                        x: x,
+                        y: groundHeight - 45,
+                        w: 28,
+                        h: 28,
+                        collected: false,
+                        type: 'puzzle',
+                        reward: 5   // gives score + gem effect
+                    });
+                }
+                
+                // Gems: sparkling collectibles
+                if(Math.random() < 0.12 && x > startX + 40){
+                    gems.push({
+                        x: x + 12,
+                        y: groundHeight - 28,
+                        w: 14,
+                        h: 14,
+                        collected: false,
+                        value: 10
+                    });
+                }
+            }
+        }
+        
+        // initial world generation
+        function initWorld(){
+            terrainBlocks = [];
+            decorations = [];
+            rivers = [];
+            puzzles = [];
+            gems = [];
+            // generate from -200 to 1500 initial area
+            for(let x = -200; x <= 1500; x += 45){
+                let groundHeight = GROUND_Y_BASE + Math.sin(x * 0.012) * 14 + Math.sin(x * 0.035) * 6;
+                groundHeight = Math.min(GROUND_Y_BASE + 20, Math.max(GROUND_Y_BASE - 18, groundHeight));
+                terrainBlocks.push({x: x, y: groundHeight, w: 42, h: CANVAS_H - groundHeight, type:'ground'});
+                if(Math.random()<0.1 && x>0) decorations.push({x:x+8, y:groundHeight-28, type:'tree', variant:Math.floor(Math.random()*3)});
+                if(Math.random()<0.06 && x>80) rivers.push({x:x, y:groundHeight-9, w:65, h:12, active:true});
+                if(Math.random()<0.06 && x>100) puzzles.push({x:x, y:groundHeight-44, w:26, h:26, collected:false, type:'puzzle', reward:5});
+                if(Math.random()<0.1 && x>60) gems.push({x:x+12, y:groundHeight-28, w:14, h:14, collected:false, value:10});
+            }
+            lastGenX = 1500;
+        }
+        
+        // dynamic generation while moving
+        function updateGeneration(currentCameraCenter){
+            let worldRightEdge = cameraX + CANVAS_W + 300;
+            if(worldRightEdge > lastGenX - 100){
+                let newStart = lastGenX;
+                let newEnd = lastGenX + GEN_DISTANCE;
+                for(let x = newStart; x <= newEnd; x += 45){
+                    let groundHeight = GROUND_Y_BASE + Math.sin(x * 0.012) * 14 + Math.sin(x * 0.035) * 6;
+                    groundHeight = Math.min(GROUND_Y_BASE + 20, Math.max(GROUND_Y_BASE - 18, groundHeight));
+                    terrainBlocks.push({x: x, y: groundHeight, w: 42, h: CANVAS_H - groundHeight, type:'ground'});
+                    if(Math.random()<0.12) decorations.push({x:x+5, y:groundHeight-28, type:'tree', variant:Math.floor(Math.random()*3)});
+                    if(Math.random()<0.07) rivers.push({x:x, y:groundHeight-9, w:68, h:12, active:true});
+                    if(Math.random()<0.07) puzzles.push({x:x, y:groundHeight-44, w:26, h:26, collected:false, type:'puzzle', reward:5});
+                    if(Math.random()<0.12) gems.push({x:x+12, y:groundHeight-28, w:14, h:14, collected:false, value:10});
+                    if(Math.random()<0.05) decorations.push({x:x-5, y:groundHeight-15, type:'hillMound'});
+                }
+                lastGenX = newEnd;
+            }
+        }
+        
+        // cleanup far objects
+        function cleanupObjects(){
+            let cleanupLimit = cameraX - 400;
+            terrainBlocks = terrainBlocks.filter(b => b.x + b.w > cleanupLimit);
+            decorations = decorations.filter(d => d.x + 60 > cleanupLimit);
+            rivers = rivers.filter(r => r.x + r.w > cleanupLimit);
+            puzzles = puzzles.filter(p => p.x + p.w > cleanupLimit && !p.collected);
+            gems = gems.filter(g => g.x + g.w > cleanupLimit && !g.collected);
+        }
+        
+        // ---------- collision & physics ----------
+        function applyPhysicsAndCollision(){
+            // apply gravity
+            player.vy += GRAVITY;
+            player.x += player.vx;
+            player.y += player.vy;
+            
+            // horizontal bounds (keep inside world edges)
+            if(player.x < 50) player.x = 50;
+            // right boundary soft limit
+            if(player.x > lastGenX - 100) player.x = lastGenX - 100;
+            
+            // collision with ground terrain (platforms)
+            player.grounded = false;
+            let wasGrounded = false;
+            let groundContactY = 0;
+            for(let block of terrainBlocks){
+                if(player.x + player.width > block.x && player.x < block.x + block.w){
+                    // top of ground is block.y
+                    let groundTop = block.y;
+                    if(player.y + player.height <= groundTop + 12 && player.y + player.height + player.vy >= groundTop){
+                        if(player.vy >= 0){
+                            player.y = groundTop - player.height;
+                            player.vy = 0;
+                            player.grounded = true;
+                            wasGrounded = true;
+                            groundContactY = groundTop;
+                        }
+                    }
+                }
+            }
+            
+            // if grounded reset double jump
+            if(player.grounded){
+                player.doubleJumpAvailable = true;
+            }
+            
+            // River hazard: slow + score penalty / or just slow
+            for(let river of rivers){
+                if(!river.active) continue;
+                if(player.x + player.width > river.x && player.x < river.x + river.w &&
+                   player.y + player.height > river.y && player.y < river.y + river.h+8){
+                    // touch river -> speed reduction, small score penalty per frame
+                    if(player.grounded){
+                        player.vx *= 0.98;
+                        if(Math.random()<0.02) score = Math.max(0, score-1);
+                    }
+                }
+            }
+            
+            // puzzle collection
+            for(let i=0; i<puzzles.length; i++){
+                let p = puzzles[i];
+                if(!p.collected && player.x + player.width > p.x && player.x < p.x + p.w &&
+                   player.y + player.height > p.y && player.y < p.y + p.h){
+                    p.collected = true;
+                    score += p.reward;
+                    gemsCollected += 1;   // puzzle reward counts as special gem
+                    updateUI();
+                }
+            }
+            
+            // gem collection
+            for(let i=0; i<gems.length; i++){
+                let g = gems[i];
+                if(!g.collected && player.x + player.width > g.x && player.x < g.x + g.w &&
+                   player.y + player.height > g.y && player.y < g.y + g.h){
+                    g.collected = true;
+                    gemsCollected++;
+                    score += g.value;
+                    updateUI();
+                }
+            }
+            
+            // extra falling death: if fall below canvas
+            if(player.y + player.height > CANVAS_H + 60){
+                gameRunning = false;
+            }
+            
+            // stop horizontal drift
+            player.vx *= 0.92;
+            if(Math.abs(player.vx) < 0.2) player.vx = 0;
+        }
+        
+        // move camera & update score distance
+        function updateCameraAndDistance(){
+            let targetCam = player.x - CANVAS_W/2;
+            targetCam = Math.min(Math.max(targetCam, 0), lastGenX - CANVAS_W);
+            cameraX = targetCam;
+            worldOffset = cameraX;
+            // distance increases as player moves right
+            let newDistance = player.x / 12;
+            if(newDistance > distance){
+                distance = newDistance;
+                score += (newDistance - distance) * 0.5;
+                updateUI();
+            } else {
+                distance = newDistance;
+            }
+            score = Math.max(0, score);
+            updateUI();
+        }
+        
+        // input handling
+        let leftPressed = false, rightPressed = false, upPressed = false, downPressed = false;
+        
+        function handleMovement(){
+            if(!gameRunning) return;
+            let moveSpeed = 5.2;
+            if(leftPressed) player.vx = -moveSpeed;
+            if(rightPressed) player.vx = moveSpeed;
+            if(upPressed && player.grounded){
+                player.vy = JUMP_POWER;
+                player.grounded = false;
+            }
+            // double jump action from button (special)
+        }
+        
+        function performDoubleJump(){
+            if(!gameRunning) return;
+            if(!player.grounded && player.doubleJumpAvailable){
+                player.vy = JUMP_POWER;
+                player.doubleJumpAvailable = false;
+                // little effect
+            }
+        }
+        
+        function resetGame(){
+            gameRunning = true;
+            score = 0;
+            gemsCollected = 0;
+            distance = 0;
+            player = {
+                x: 150,
+                y: 0,
+                vx: 0,
+                vy: 0,
+                width: PLAYER_WIDTH,
+                height: PLAYER_HEIGHT,
+                grounded: false,
+                doubleJumpAvailable: true,
+                facingRight: true
+            };
+            cameraX = 0;
+            worldOffset = 0;
+            initWorld();
+            updateUI();
+            // set player Y properly
+            for(let block of terrainBlocks){
+                if(player.x + player.width > block.x && player.x < block.x+block.w){
+                    player.y = block.y - player.height;
+                    player.grounded = true;
+                    break;
+                }
+            }
+        }
+        
+        // ----- drawing functions (Attractive like Lep's world) -----
+        function drawSky(){
+            let grad = ctx.createLinearGradient(0,0,0,CANVAS_H);
+            grad.addColorStop(0,"#b0e4ff");
+            grad.addColorStop(0.7,"#e6f7d4");
+            ctx.fillStyle=grad;
+            ctx.fillRect(0,0,CANVAS_W,CANVAS_H);
+            ctx.fillStyle="#fff9cf";
+            for(let i=0;i<40;i++){ 
+                ctx.beginPath();
+                ctx.arc(70+(i*97+cameraX*0.3)%CANVAS_W, 60, 2,0,Math.PI*2);
+              ctx.fill();
+            }
+        }
+        
+        function drawTerrain(){
+            for(let block of terrainBlocks){
+                let drawX = block.x - cameraX;
+                let drawY = block.y;
+                // hill ground with grass top
+                ctx.fillStyle="#5d8c48";
+                ctx.fillRect(drawX, drawY, block.w, block.h);
+                ctx.fillStyle="#3d6b2f";
+                ctx.fillRect(drawX, drawY-5, block.w, 8);
+                ctx.fillStyle="#86bf4c";
+                ctx.fillRect(drawX, drawY-3, block.w, 5);
+            }
+        }
+        
+        function drawDecorations(){
+            for(let d of decorations){
+                let x = d.x - cameraX;
+                let y = d.y;
+                if(d.type === 'tree'){
+                    ctx.fillStyle="#6b3e1a";
+                    ctx.fillRect(x+8, y+10, 6, 20);
+                    ctx.fillStyle="#2f6b2f";
+                    ctx.beginPath();
+                    ctx.arc(x+11, y+6, 12,0,Math.PI*2);
+                    ctx.fill();
+                    ctx.fillStyle="#4caf50";
+                    ctx.beginPath();
+                    ctx.arc(x+11, y-2, 9,0,Math.PI*2);
+                    ctx.fill();
+                } else if(d.type === 'hillMound'){
+                    ctx.fillStyle="#8cb36c";
+                    ctx.beginPath();
+                    ctx.ellipse(x+20, y+12, 26, 14, 0, 0, Math.PI*2);
+                    ctx.fill();
+                }
+            }
+        }
+        
+        function drawRivers(){
+            for(let r of rivers){
+                let x = r.x - cameraX;
+                let y = r.y;
+                ctx.fillStyle="#4aa3dfaa";
+                ctx.fillRect(x, y, r.w, r.h);
+                ctx.fillStyle="#2c7bb6aa";
+                for(let i=0;i<4;i++) ctx.fillRect(x+ i*12, y+3, 6, 4);
+            }
+        }
+        
+        function drawPuzzles(){
+            for(let p of puzzles){
+                if(p.collected) continue;
+                let x = p.x - cameraX;
+                let y = p.y;
+                ctx.fillStyle="#f7d44a";
+                ctx.shadowBlur=6;
+                ctx.fillRect(x, y, p.w, p.h);
+                ctx.fillStyle="#d48c2c";
+                ctx.fillRect(x+4, y+4, p.w-8, p.h-8);
+                ctx.fillStyle="white";
+                ctx.font="bold 18px monospace";
+                ctx.fillText("?", x+8, y+22);
+                ctx.shadowBlur=0;
+            }
+        }
+        
+        function drawGems(){
+            for(let g of gems){
+                if(g.collected) continue;
+                let x = g.x - cameraX;
+                let y = g.y;
+                ctx.fillStyle="#ffd966";
+                ctx.beginPath();
+                ctx.moveTo(x+7, y);
+                ctx.lineTo(x+12, y+6);
+                ctx.lineTo(x+7, y+12);
+                ctx.lineTo(x+2, y+6);
+                ctx.fill();
+                ctx.fillStyle="gold";
+                ctx.beginPath();
+                ctx.arc(x+7, y+6, 4,0,Math.PI*2);
+                ctx.fill();
+            }
+        }
+        
+        function drawPlayer(){
+            let px = player.x - cameraX;
+            let py = player.y;
+            ctx.shadowBlur=0;
+            // character design cute
+            ctx.fillStyle="#ffb347";
+            ctx.fillRect(px, py, player.width, player.height);
+            ctx.fillStyle="#e67e22";
+            ctx.fillRect(px+4, py+6, 6, 10);
+            ctx.fillRect(px+22, py+6, 6, 10);
+            ctx.fillStyle="#2c2c2c";
+            ctx.fillRect(px+8, py+12, 6, 6);
+            ctx.fillRect(px+20, py+12, 6, 6);
+            ctx.fillStyle="#fff0c0";
+            ctx.beginPath();
+            ctx.arc(px+24, py+8, 4,0,Math.PI*2);
+            ctx.fill();
+            ctx.fillStyle="#2c2c2c";
+            ctx.beginPath();
+            ctx.arc(px+26, py+6, 1.5,0,Math.PI*2);
+            ctx.fill();
+            if(!player.grounded){
+                ctx.fillStyle="#aa88ffaa";
+                ctx.fillRect(px-2, py+player.height-4, player.width+4, 6);
+                             }
+              // double jump indicator
+            if(player.doubleJumpAvailable && !player.grounded){
+                ctx.fillStyle="#fffbd0";
+                ctx.font="bold 12px monospace";
+                ctx.fillText("✪", px+14, py-6);
+            }
+        }
+        
+        function drawGameMessages(){
+            if(!gameRunning){
+                ctx.font="bold 34px 'Segoe UI'";
+                ctx.fillStyle="#cc4422";
+                ctx.shadowBlur=0;
+                ctx.fillText("GAME OVER", CANVAS_W/2-120, CANVAS_H/2);
+                ctx.font="18px monospace";
+                ctx.fillStyle="white";
+                ctx.fillText("Press RESTART", CANVAS_W/2-70, CANVAS_H/2+50);
+            }
+        }
+        
+        // ---- main game loop ----
+        function updateGame(){
+            if(gameRunning){
+                handleMovement();
+                applyPhysicsAndCollision();
+                updateCameraAndDistance();
+                updateGeneration(cameraX);
+                cleanupObjects();
+                // auto increase score by distance effect
+                score += 0.05;
+                updateUI();
+                // edge death: if player y too low
+                if(player.y + player.height > CANVAS_H+50) gameRunning = false;
+            }
+        }
+        
+        function draw(){
+            drawSky();
+            drawTerrain();
+            drawRivers();
+            drawDecorations();
+            drawPuzzles();
+            drawGems();
+            drawPlayer();
+            drawGameMessages();
+            // extra floating particles
+            ctx.fillStyle="#ffef9e";
+            for(let i=0;i<3;i++){
+                ctx.fillRect((player.x-cameraX+12+Math.sin(Date.now()*0.01+i)*5), player.y-10, 3,3);
+            }
+        }
+        
+        function gameLoop(){
+            updateGame();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // ----- EVENT HANDLERS (buttons & keyboard) -----
+        function attachControls(){
+            const leftBtn = document.getElementById('leftBtn');
+            const rightBtn = document.getElementById('rightBtn');
+            const upBtn = document.getElementById('upBtn');
+            const downBtn = document.getElementById('downBtn');
+            const doubleBtn = document.getElementById('doubleJumpBtn');
+            const resetBtn = document.getElementById('resetBtn');
+            
+            const setPress = (key, state) => {
+                if(key === 'left') leftPressed = state;
+                if(key === 'right') rightPressed = state;
+                if(key === 'up') upPressed = state;
+                if(key === 'down') downPressed = state;
+            };
+            
+            leftBtn.addEventListener('mousedown',()=>setPress('left',true));
+            leftBtn.addEventListener('mouseup',()=>setPress('left',false));
+            leftBtn.addEventListener('mouseleave',()=>setPress('left',false));
+            rightBtn.addEventListener('mousedown',()=>setPress('right',true));
+            rightBtn.addEventListener('mouseup',()=>setPress('right',false));
+            rightBtn.addEventListener('mouseleave',()=>setPress('right',false));
+            upBtn.addEventListener('mousedown',()=>setPress('up',true));
+            upBtn.addEventListener('mouseup',()=>setPress('up',false));
+            upBtn.addEventListener('mouseleave',()=>setPress('up',false));
+            downBtn.addEventListener('mousedown',()=>setPress('down',true));
+            downBtn.addEventListener('mouseup',()=>setPress('down',false));
+            
+            doubleBtn.addEventListener('click',()=>performDoubleJump());
+            resetBtn.addEventListener('click',()=>resetGame());
+            
+            window.addEventListener('keydown',(e)=>{
+                if(e.key === 'ArrowLeft') setPress('left',true);
+                if(e.key === 'ArrowRight') setPress('right',true);
+                if(e.key === 'ArrowUp') { setPress('up',true); e.preventDefault();}
+                if(e.key === 'ArrowDown') setPress('down',true);
+                if(e.key === ' ' || e.key === 'Space') { performDoubleJump(); e.preventDefault();}
+                if(e.key === 'r') resetGame();
+            });
+          window.addEventListener('keyup',(e)=>{
+                if(e.key === 'ArrowLeft') setPress('left',false);
+                if(e.key === 'ArrowRight') setPress('right',false);
+                if(e.key === 'ArrowUp') setPress('up',false);
+                if(e.key === 'ArrowDown') setPress('down',false);
+            });
+            // touch for mobile canvas prevent default
+            canvas.addEventListener('touchstart', (e) => e.preventDefault());
+        }
+        
+        initWorld();
+        // initial ground snap
+        for(let block of terrainBlocks){
+            if(player.x + player.width > block.x && player.x < block.x+block.w){
+                player.y = block.y - player.height;
+                player.grounded = true;
+                break;
+            }
+        }
+        attachControls();
+        updateUI();
+        gameLoop();
+    })();
+</script>
+</body>
+</html>
+```
+       
