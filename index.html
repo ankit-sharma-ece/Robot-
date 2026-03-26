@@ -1,180 +1,221 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cyberpunk Robot Character - Canvas</title>
-    <style>
-        body { margin: 0; background: #08081a; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
-        canvas { box-shadow: 0 0 50px rgba(0, 255, 200, 0.3); border-radius: 8px; }
-        #instructions { position: absolute; bottom: 20px; color: #00ffc8; font-family: 'Courier New', monospace; }
-    </style>
+<meta charset="UTF-8">
+<title>Infinite Escape Pro</title>
+
+<style>
+body {
+  margin: 0;
+  overflow: hidden;
+  background: linear-gradient(#1e3c72, #2a5298);
+  font-family: Arial;
+}
+
+canvas { display: block; }
+
+#ui {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  color: white;
+  padding: 10px 15px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.1);
+  backdrop-filter: blur(10px);
+}
+
+#controls {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+}
+
+.btn {
+  width: 60px;
+  height: 60px;
+  margin: 5px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255,255,255,0.2);
+  color: white;
+  font-size: 20px;
+}
+
+#jumpBtn {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+}
+</style>
 </head>
+
 <body>
 
-<canvas id="robotCanvas" width="300" height="300"></canvas>
-<div id="instructions">ARROW KEYS TO MOVE / SPACE TO BOOST</div>
+<div id="ui">
+  Score: <span id="score">0</span> |
+  Keys: <span id="keys">0</span>
+</div>
+
+<div id="controls">
+  <button class="btn" ontouchstart="moveLeft(true)" ontouchend="moveLeft(false)">←</button>
+  <button class="btn" ontouchstart="moveRight(true)" ontouchend="moveRight(false)">→</button>
+</div>
+
+<button id="jumpBtn" class="btn"
+ ontouchstart="jump()">⤴</button>
+
+<canvas id="game"></canvas>
 
 <script>
-/**
- * CYBERPUNK ROBOT CHARACTER (UNIT-77)
- * Entirely rendered using Canvas API
- */
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-const canvas = document.getElementById('robotCanvas');
-const ctx = canvas.getContext('2d');
+canvas.width = innerWidth;
+canvas.height = innerHeight;
 
-// Game/Character State
-const player = {
-    x: 120, // Center X
-    y: 120, // Center Y
-    width: 60,
-    height: 80,
-    velocityX: 0,
-    velocityY: 0,
-    speed: 5,
-    boost: false,
-    frame: 0 // Used for animation oscillation
+// PLAYER
+let player = {
+  x: 100, y: 300,
+  w: 40, h: 40,
+  dy: 0,
+  gravity: 0.8,
+  jump: -15,
+  jumps: 0,
+  keys: 0
 };
 
-// Input Handling
-const keys = { right: false, left: false, up: false, down: false };
-document.addEventListener('keydown', e => handleKey(e, true));
-document.addEventListener('keyup', e => handleKey(e, false));
+// INPUT
+let left = false, right = false;
 
-function handleKey(e, isPressed) {
-    if (e.key === 'ArrowRight') keys.right = isPressed;
-    if (e.key === 'ArrowLeft') keys.left = isPressed;
-    if (e.key === 'ArrowUp') keys.up = isPressed;
-    if (e.key === 'ArrowDown') keys.down = isPressed;
-    if (e.key === ' ') player.boost = isPressed; // Boost mode
+// WORLD
+let platforms = [];
+let keysArr = [];
+let gates = [];
+let speed = 5;
+let score = 0;
+
+// CREATE WORLD
+function createPlatform(x) {
+  let y = Math.random()*200 + 250;
+
+  platforms.push({x,y,w:200,h:20});
+
+  if(Math.random() > 0.6){
+    keysArr.push({x:x+80, y:y-40});
+  }
+
+  if(Math.random() > 0.75){
+    gates.push({x:x+120, y:y-40, locked:true});
+  }
 }
 
-/**
- * The Drawing Core: Renders the robot at (x, y)
- */
-function drawRobot(x, y, scale = 1, animationFrame = 0) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.scale(scale, scale);
+for(let i=0;i<10;i++) createPlatform(i*200);
 
-    // Oscillation for breath/hover effect
-    const hoverOffset = Math.sin(animationFrame * 0.1) * 3;
+// CONTROLS
+function moveLeft(v){ left = v; }
+function moveRight(v){ right = v; }
 
-    // Colors: Cyberpunk Palette
-    const CYBER_NEON = "#00ffc8"; // Main accent (Cyan)
-    const CYBER_PINK = "#ff0055"; // Secondary accent (Pink)
-    const UNIT_BODY = "#1a1a2e"; // Dark body
-    const UNIT_ARMOR = "#303050"; // Secondary body
+function jump(){
+  if(player.jumps < 2){
+    player.dy = player.jump;
+    player.jumps++;
+  }
+}
 
-    // 1. Hover Thruster Effect (Draw under body)
-    if (player.boost) {
-        ctx.shadowColor = CYBER_PINK;
-        ctx.shadowBlur = 20;
-        ctx.fillStyle = CYBER_PINK;
-        ctx.beginPath();
-        ctx.moveTo(15, 60 + hoverOffset);
-        ctx.lineTo(30, 90 + (hoverOffset * 2));
-        ctx.lineTo(45, 60 + hoverOffset);
-        ctx.fill();
-    } else {
-        ctx.shadowColor = CYBER_NEON;
-        ctx.shadowBlur = 15;
-        ctx.fillStyle = CYBER_NEON;
-        ctx.beginPath();
-        ctx.moveTo(20, 60 + hoverOffset);
-        ctx.lineTo(30, 75 + hoverOffset);
-        ctx.lineTo(40, 60 + hoverOffset);
-        ctx.fill();
+// LOOP
+function update(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // MOVE
+  if(left) player.x -= 5;
+  if(right) player.x += 5;
+
+  player.dy += player.gravity;
+  player.y += player.dy;
+
+  let grounded = false;
+
+  // PLATFORMS
+  platforms.forEach(p=>{
+    p.x -= speed;
+
+    ctx.fillStyle = "#2ecc71";
+    ctx.fillRect(p.x,p.y,p.w,p.h);
+
+    if(player.x < p.x+p.w &&
+       player.x+player.w > p.x &&
+       player.y < p.y+p.h &&
+       player.y+player.h > p.y){
+
+       player.y = p.y-player.h;
+       player.dy = 0;
+       grounded = true;
+       player.jumps = 0;
     }
-    ctx.shadowBlur = 0; // Reset shadow
+  });
 
-    // 2. Main Body Chassis
-    ctx.fillStyle = UNIT_BODY;
-    ctx.strokeStyle = UNIT_ARMOR;
-    ctx.lineWidth = 2;
-    ctx.fillRect(10, 20 + hoverOffset, 40, 40); // Body rect
-    ctx.strokeRect(10, 20 + hoverOffset, 40, 40);
+  // KEYS
+  keysArr.forEach((k,i)=>{
+    k.x -= speed;
+    ctx.fillStyle="yellow";
+    ctx.fillRect(k.x,k.y,15,15);
 
-    // 3. Head Unit
-    ctx.fillStyle = UNIT_ARMOR;
-    ctx.fillRect(15, 5 + hoverOffset, 30, 15);
-    ctx.strokeRect(15, 5 + hoverOffset, 30, 15);
+    if(player.x < k.x+15 &&
+       player.x+player.w > k.x &&
+       player.y < k.y+15 &&
+       player.y+player.h > k.y){
+         player.keys++;
+         keysArr.splice(i,1);
+       }
+  });
 
-    // 4. Face/Visor (THE UNIQUE NEON FEATURE)
-    ctx.shadowColor = player.boost ? CYBER_PINK : CYBER_NEON;
-    ctx.shadowBlur = 10;
-    ctx.fillStyle = player.boost ? CYBER_PINK : CYBER_NEON;
-    // Main Visor
-    ctx.fillRect(20, 8 + hoverOffset, 20, 6);
-    // "Mouth" vent glow
-    ctx.fillRect(25, 16 + hoverOffset, 10, 1);
-    ctx.shadowBlur = 0;
+  // GATES (PUZZLE)
+  gates.forEach(g=>{
+    g.x -= speed;
 
-    // 5. Arms (Segmented)
-    ctx.fillStyle = UNIT_ARMOR;
-    // Left Arm (with shoulder joint)
-    ctx.fillRect(2, 22 + hoverOffset, 8, 25);
-    ctx.fillStyle = CYBER_NEON;
-    ctx.fillRect(0, 20 + hoverOffset, 12, 10); // Shoulder
-    // Right Arm
-    ctx.fillStyle = UNIT_ARMOR;
-    ctx.fillRect(50, 22 + hoverOffset, 8, 25);
-    ctx.fillStyle = CYBER_NEON;
-    ctx.fillRect(48, 20 + hoverOffset, 12, 10); // Shoulder
+    ctx.fillStyle = g.locked ? "red":"green";
+    ctx.fillRect(g.x,g.y,20,40);
 
-    // 6. Chest Details
-    ctx.fillStyle = "#0a0a1a";
-    ctx.fillRect(20, 28 + hoverOffset, 20, 10); // Center Core
-    // Neon Core Pulse
-    ctx.shadowColor = CYBER_NEON;
-    ctx.shadowBlur = 5 + (Math.sin(animationFrame * 0.2) * 3);
-    ctx.fillStyle = CYBER_NEON;
-    ctx.fillRect(28, 30 + hoverOffset, 4, 6);
-    ctx.shadowBlur = 0;
+    if(player.x < g.x+20 &&
+       player.x+player.w > g.x &&
+       player.y < g.y+40 &&
+       player.y+player.h > g.y){
 
-    // Restore context
-    ctx.restore();
+       if(g.locked && player.keys>0){
+         g.locked=false;
+         player.keys--;
+       } else if(g.locked){
+         gameOver();
+       }
+    }
+  });
+
+  // PLAYER
+  ctx.fillStyle="white";
+  ctx.fillRect(player.x,player.y,player.w,player.h);
+
+  // NEW PLATFORM
+  if(platforms[platforms.length-1].x < canvas.width){
+    createPlatform(platforms.length*200);
+  }
+
+  score++;
+  document.getElementById("score").innerText = score;
+  document.getElementById("keys").innerText = player.keys;
+
+  requestAnimationFrame(update);
 }
 
-/**
- * Main Loop
- */
-function update() {
-    // 1. Clear Canvas
-    ctx.fillStyle = "#08081a"; // Keep bg consistent
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // 2. Input to Velocity
-    const currentSpeed = player.boost ? player.speed * 1.8 : player.speed;
-    player.velocityX = 0;
-    player.velocityY = 0;
-    if (keys.right) player.velocityX = currentSpeed;
-    if (keys.left) player.velocityX = -currentSpeed;
-    if (keys.up) player.velocityY = -currentSpeed;
-    if (keys.down) player.velocityY = currentSpeed;
-
-    // 3. Update Position
-    player.x += player.velocityX;
-    player.y += player.velocityY;
-    player.frame++;
-
-    // 4. Wrap around screen (for simple demo)
-    if (player.x > canvas.width) player.x = -player.width;
-    if (player.x < -player.width) player.x = canvas.width;
-    if (player.y > canvas.height) player.y = -player.height;
-    if (player.y < -player.height) player.y = canvas.height;
-
-    // 5. Draw!
-    drawRobot(player.x, player.y, 2, player.frame); // Scaling factor of 2
-
-    // 6. Repeat
-    requestAnimationFrame(update);
+// GAME OVER
+function gameOver(){
+  alert("Game Over 😵 Score: "+score);
+  location.reload();
 }
 
-// Start the loop
 update();
-
 </script>
+
 </body>
-</html>
+</html>   
+    
