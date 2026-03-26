@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyberpunk Robot Character - Canvas</title>
+    <style>
+        body { margin: 0; background: #08081a; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+        canvas { box-shadow: 0 0 50px rgba(0, 255, 200, 0.3); border-radius: 8px; }
+        #instructions { position: absolute; bottom: 20px; color: #00ffc8; font-family: 'Courier New', monospace; }
+    </style>
+</head>
+<body>
+
+<canvas id="robotCanvas" width="300" height="300"></canvas>
+<div id="instructions">ARROW KEYS TO MOVE / SPACE TO BOOST</div>
+
+<script>
+/**
+ * CYBERPUNK ROBOT CHARACTER (UNIT-77)
+ * Entirely rendered using Canvas API
+ */
+
+const canvas = document.getElementById('robotCanvas');
+const ctx = canvas.getContext('2d');
+
+// Game/Character State
+const player = {
+    x: 120, // Center X
+    y: 120, // Center Y
+    width: 60,
+    height: 80,
+    velocityX: 0,
+    velocityY: 0,
+    speed: 5,
+    boost: false,
+    frame: 0 // Used for animation oscillation
+};
+
+// Input Handling
+const keys = { right: false, left: false, up: false, down: false };
+document.addEventListener('keydown', e => handleKey(e, true));
+document.addEventListener('keyup', e => handleKey(e, false));
+
+function handleKey(e, isPressed) {
+    if (e.key === 'ArrowRight') keys.right = isPressed;
+    if (e.key === 'ArrowLeft') keys.left = isPressed;
+    if (e.key === 'ArrowUp') keys.up = isPressed;
+    if (e.key === 'ArrowDown') keys.down = isPressed;
+    if (e.key === ' ') player.boost = isPressed; // Boost mode
+}
+
+/**
+ * The Drawing Core: Renders the robot at (x, y)
+ */
+function drawRobot(x, y, scale = 1, animationFrame = 0) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+
+    // Oscillation for breath/hover effect
+    const hoverOffset = Math.sin(animationFrame * 0.1) * 3;
+
+    // Colors: Cyberpunk Palette
+    const CYBER_NEON = "#00ffc8"; // Main accent (Cyan)
+    const CYBER_PINK = "#ff0055"; // Secondary accent (Pink)
+    const UNIT_BODY = "#1a1a2e"; // Dark body
+    const UNIT_ARMOR = "#303050"; // Secondary body
+
+    // 1. Hover Thruster Effect (Draw under body)
+    if (player.boost) {
+        ctx.shadowColor = CYBER_PINK;
+        ctx.shadowBlur = 20;
+        ctx.fillStyle = CYBER_PINK;
+        ctx.beginPath();
+        ctx.moveTo(15, 60 + hoverOffset);
+        ctx.lineTo(30, 90 + (hoverOffset * 2));
+        ctx.lineTo(45, 60 + hoverOffset);
+        ctx.fill();
+    } else {
+        ctx.shadowColor = CYBER_NEON;
+        ctx.shadowBlur = 15;
+        ctx.fillStyle = CYBER_NEON;
+        ctx.beginPath();
+        ctx.moveTo(20, 60 + hoverOffset);
+        ctx.lineTo(30, 75 + hoverOffset);
+        ctx.lineTo(40, 60 + hoverOffset);
+        ctx.fill();
+    }
+    ctx.shadowBlur = 0; // Reset shadow
+
+    // 2. Main Body Chassis
+    ctx.fillStyle = UNIT_BODY;
+    ctx.strokeStyle = UNIT_ARMOR;
+    ctx.lineWidth = 2;
+    ctx.fillRect(10, 20 + hoverOffset, 40, 40); // Body rect
+    ctx.strokeRect(10, 20 + hoverOffset, 40, 40);
+
+    // 3. Head Unit
+    ctx.fillStyle = UNIT_ARMOR;
+    ctx.fillRect(15, 5 + hoverOffset, 30, 15);
+    ctx.strokeRect(15, 5 + hoverOffset, 30, 15);
+
+    // 4. Face/Visor (THE UNIQUE NEON FEATURE)
+    ctx.shadowColor = player.boost ? CYBER_PINK : CYBER_NEON;
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = player.boost ? CYBER_PINK : CYBER_NEON;
+    // Main Visor
+    ctx.fillRect(20, 8 + hoverOffset, 20, 6);
+    // "Mouth" vent glow
+    ctx.fillRect(25, 16 + hoverOffset, 10, 1);
+    ctx.shadowBlur = 0;
+
+    // 5. Arms (Segmented)
+    ctx.fillStyle = UNIT_ARMOR;
+    // Left Arm (with shoulder joint)
+    ctx.fillRect(2, 22 + hoverOffset, 8, 25);
+    ctx.fillStyle = CYBER_NEON;
+    ctx.fillRect(0, 20 + hoverOffset, 12, 10); // Shoulder
+    // Right Arm
+    ctx.fillStyle = UNIT_ARMOR;
+    ctx.fillRect(50, 22 + hoverOffset, 8, 25);
+    ctx.fillStyle = CYBER_NEON;
+    ctx.fillRect(48, 20 + hoverOffset, 12, 10); // Shoulder
+
+    // 6. Chest Details
+    ctx.fillStyle = "#0a0a1a";
+    ctx.fillRect(20, 28 + hoverOffset, 20, 10); // Center Core
+    // Neon Core Pulse
+    ctx.shadowColor = CYBER_NEON;
+    ctx.shadowBlur = 5 + (Math.sin(animationFrame * 0.2) * 3);
+    ctx.fillStyle = CYBER_NEON;
+    ctx.fillRect(28, 30 + hoverOffset, 4, 6);
+    ctx.shadowBlur = 0;
+
+    // Restore context
+    ctx.restore();
+}
+
+/**
+ * Main Loop
+ */
+function update() {
+    // 1. Clear Canvas
+    ctx.fillStyle = "#08081a"; // Keep bg consistent
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 2. Input to Velocity
+    const currentSpeed = player.boost ? player.speed * 1.8 : player.speed;
+    player.velocityX = 0;
+    player.velocityY = 0;
+    if (keys.right) player.velocityX = currentSpeed;
+    if (keys.left) player.velocityX = -currentSpeed;
+    if (keys.up) player.velocityY = -currentSpeed;
+    if (keys.down) player.velocityY = currentSpeed;
+
+    // 3. Update Position
+    player.x += player.velocityX;
+    player.y += player.velocityY;
+    player.frame++;
+
+    // 4. Wrap around screen (for simple demo)
+    if (player.x > canvas.width) player.x = -player.width;
+    if (player.x < -player.width) player.x = canvas.width;
+    if (player.y > canvas.height) player.y = -player.height;
+    if (player.y < -player.height) player.y = canvas.height;
+
+    // 5. Draw!
+    drawRobot(player.x, player.y, 2, player.frame); // Scaling factor of 2
+
+    // 6. Repeat
+    requestAnimationFrame(update);
+}
+
+// Start the loop
+update();
+
+</script>
+</body>
+</html>
